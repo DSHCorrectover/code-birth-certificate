@@ -197,6 +197,26 @@ Environment variables: `ZENODO_TOKEN` (optional), `REKOR_API` (optional Rekor
 base URL), `CBC_SUBJECT_NAME` / `CBC_SUBJECT_EMAIL` / `CBC_SUBJECT_ORG`
 (signer identity; the GitHub Action fills these from the repository owner).
 
+## Live proofs — verify them yourself
+
+Every anchor below was produced by a **public GitHub Actions run**, not anyone's
+laptop, and is independently verifiable by querying the Rekor transparency log
+— no account, no Correctover service:
+
+| Repository | What was anchored | Rekor log index |
+| --- | --- | --- |
+| [DSHCorrectover/code-birth-certificate](https://github.com/DSHCorrectover/code-birth-certificate) | this action's own repository (self-anchor) | [`2695953558`](https://search.sigstore.dev/?logIndex=2695953558) |
+| [DSHCorrectover/correctover-scan](https://github.com/DSHCorrectover/correctover-scan) | scanner v1.6.0 release snapshot | [`2697131671`](https://search.sigstore.dev/?logIndex=2697131671) |
+| [DSHCorrectover/ccs-conformance-vectors](https://github.com/DSHCorrectover/ccs-conformance-vectors) | 578-file conformance-vector repository (dogfooding) | [`2697248662`](https://search.sigstore.dev/?logIndex=2697248662) |
+
+**To verify:** open a Rekor link, or
+`GET https://rekor.sigstore.dev/api/v1/log/entries?logIndex=<index>`, and compare
+`spec.data.hash.value` (the SHA-256 of the content-addressed manifest) with the
+manifest digest printed in the corresponding public Actions run log. A match
+means that exact set of file bytes existed at or before the log's integrated
+timestamp. These repositories anchor themselves on every push via the workflow
+below — eating our own dog food.
+
 ## Boundaries and honesty
 
 - This tool produces **evidence of existence and timestamp**. It does not
