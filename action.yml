@@ -1,0 +1,109 @@
+name: 'Code Birth Certificate'
+description: 'Publicly verifiable evidence of existence and timestamp for a code snapshot: content-addressed manifest (JCS/RFC 8785) + Ed25519-signed receipt (RFC 8032) + Sigstore Rekor transparency-log anchor, optional Zenodo DOI. Rekor anchoring needs no credentials.'
+author: 'Correctover'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path of the code directory to anchor (relative to the repository root).'
+    required: false
+    default: '.'
+  name:
+    description: 'Snapshot name used for the proof bundle. Defaults to the repository name.'
+    required: false
+    default: ${{ github.event.repository.name }}
+  zenodo-token:
+    description: 'Optional Zenodo personal access token. When provided, the proof bundle is additionally deposited with a Zenodo DOI. Leave empty for Rekor-only anchoring.'
+    required: false
+    default: ''
+
+outputs:
+  manifest-digest:
+    description: 'SHA-256 digest of the JCS-canonical content-addressed manifest.'
+    value: ${{ steps.anchor.outputs.manifest-digest }}
+  rekor-log-index:
+    description: 'Sigstore Rekor transparency-log entry index.'
+    value: ${{ steps.anchor.outputs.rekor-log-index }}
+  rekor-url:
+    description: 'Public Sigstore log viewer URL for the Rekor entry.'
+    value: ${{ steps.anchor.outputs.rekor-url }}
+  zenodo-doi:
+    description: 'Zenodo DOI of the proof bundle, empty when no token was provided.'
+    value: ${{ steps.anchor.outputs.zenodo-doi }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install --quiet --upgrade pip
+        python -m pip install --quiet jcs cryptography
+
+    - name: Generate ephemeral anchor keys
+      shell: bash
+      env:
+        CBC_KEYS_DIR: ${{ runner.temp }}/cbc-keys
+      run: |
+        python "${{ github.action_path }}/provenance.py" keygen --keys-dir "$CBC_KEYS_DIR"
+
+    - name: Anchor snapshot to Sigstore Rekor
+      id: anchor
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        CBC_KEYS_DIR: ${{ runner.temp }}/cbc-keys
+        CBC_OUTPUT_DIR: ${{ runner.temp }}/cbc-output
+        ZENODO_TOKEN: ${{ inputs.zenodo-token }}
+        CBC_SUBJECT_NAME: ${{ github.event.repository.owner.login }}
+        CBC_SUBJECT_EMAIL: '${{ github.event.repository.owner.login }}@users.noreply.github.com'
+        CBC_SUBJECT_ORG: ${{ github.event.repository.owner.login }}
+      run: |
+        set -euo pipefail
+        if [ -n "${ZENODO_TOKEN}" ]; then
+          echo "zenodo-token provided: Rekor anchor + Zenodo DOI"
+        else
+          echo "No zenodo-token provided: Rekor-only anchor (no credentials needed)"
+        fi
+        python "${{ github.action_path }}/provenance.py" anchor . \
+          --name "${{ inputs.name }}" \
+          --keys-dir "$CBC_KEYS_DIR" \
+          --output-dir "$CBC_OUTPUT_DIR" \
+          --strict
+        # Read machine-readable results (single-line KEY=VALUE).
+        RESULT_ENV="$CBC_OUTPUT_DIR/result.env"
+        MANIFEST_DIGEST="$(grep '^MANIFEST_DIGEST=' "$RESULT_ENV" | cut -d= -f2-)"
+        REKOR_LOG_INDEX="$(grep '^REKOR_LOG_INDEX=' "$RESULT_ENV" | cut -d= -f2-)"
+        REKOR_URL="$(grep '^REKOR_URL=' "$RESULT_ENV" | cut -d= -f2-)"
+        ZENODO_DOI="$(grep '^ZENODO_DOI=' "$RESULT_ENV" | cut -d= -f2-)"
+        BUNDLE_NAME="$(grep '^BUNDLE_NAME=' "$RESULT_ENV" | cut -d= -f2-)"
+        echo "manifest-digest=$MANIFEST_DIGEST" >> "$GITHUB_OUTPUT"
+        echo "rekor-log-index=$REKOR_LOG_INDEX" >> "$GITHUB_OUTPUT"
+        echo "rekor-url=$REKOR_URL" >> "$GITHUB_OUTPUT"
+        echo "zenodo-doi=$ZENODO_DOI" >> "$GITHUB_OUTPUT"
+        echo "bundle-path=$CBC_OUTPUT_DIR/$BUNDLE_NAME" >> "$GITHUB_OUTPUT"
+        echo ""
+        echo "::group::Proof bundle results"
+        cat "$RESULT_ENV"
+        echo "::endgroup::"
+
+    - name: Write job summary
+      shell: bash
+      env:
+        CBC_OUTPUT_DIR: ${{ runner.temp }}/cbc-output
+      run: cat "$CBC_OUTPUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload proof bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: code-birth-certificate-bundle
+        path: ${{ steps.anchor.outputs.bundle-path }}
+        if-no-files-found: error
+        retention-days: 90
