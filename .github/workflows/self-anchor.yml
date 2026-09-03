@@ -1,0 +1,32 @@
+name: code-birth-certificate-self-anchor
+
+# Dogfooding: every push to main anchors this repository itself with the
+# action defined in this repo. Rekor-only - no tokens, no accounts.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  self-anchor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Anchor this repository
+        id: cbc
+        uses: ./
+        with:
+          path: .
+          name: code-birth-certificate
+
+      - name: Report
+        run: |
+          echo "This repository's own latest birth certificate:"
+          echo "  manifest digest : ${{ steps.cbc.outputs.manifest-digest }}"
+          echo "  Rekor log index : ${{ steps.cbc.outputs.rekor-log-index }}"
+          echo "  Rekor URL       : ${{ steps.cbc.outputs.rekor-url }}"
