@@ -1,5 +1,7 @@
 # Code Birth Certificate
 
+[**Commercial verification engagements — USD 8,000–15,000, court-ready dossier**](https://dshcorrectover.github.io/correctover-recovery-admission/services.html) · [**Independent audit & conformance**](https://dshcorrectover.github.io/correctover-recovery-admission/services.html)
+
 [![self-anchor workflow](https://github.com/DSHCorrectover/code-birth-certificate/actions/workflows/self-anchor.yml/badge.svg)](https://github.com/DSHCorrectover/code-birth-certificate/actions/workflows/self-anchor.yml)
 [![Rekor genesis entry](https://img.shields.io/badge/Rekor%20genesis%20entry-logIndex%202694324795-1455A3)](https://search.sigstore.dev/?logIndex=2694324795)
 [![DOI genesis bundle](https://zenodo.org/badge/DOI/10.5281/zenodo.22266162.svg)](https://doi.org/10.5281/zenodo.22266162)
